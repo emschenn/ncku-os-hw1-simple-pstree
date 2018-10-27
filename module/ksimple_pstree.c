@@ -10,12 +10,31 @@
 #include<linux/kernel.h>
 #include <linux/moduleparam.h>
 
-#define NETLINK_TEST 25
-#define MAX_PAYLOAD_SIZE 10240
+#define NETLINK_TEST 31
+#define MAX_PAYLOAD_SIZE 10000
 
+char msg[10000];
 struct sock *nl_sk = NULL;
 pid_t pid = 1;
+int time =0;
 module_param(pid,int,0644);
+
+void pstree(struct task_struct* task)
+{
+    time++;
+    int i=0;
+    struct list_head *children_tasks;
+    children_tasks = &(task->children);
+    list_for_each(children_tasks,&(task->children)) {
+        struct task_struct *child_task;
+        child_task = list_entry(children_tasks,struct task_struct,sibling);
+
+        sprintf(msg+ strlen(msg),"\t");
+        printk("%s(%d)",child_task->comm,child_task->pid);
+        sprintf(msg+ strlen(msg),"\t%s(%d)\n", child_task->comm,child_task->pid);
+        pstree(child_task);
+    }
+}
 
 void substr(char *dest,const char *src,int start,int cnt)
 {
@@ -23,13 +42,12 @@ void substr(char *dest,const char *src,int start,int cnt)
     dest[cnt]=0;
 }
 
-void sendnlmsg(int pid,char msg[10000])
+void sendnlmsg(int pid)
 {
     struct sk_buff *skb;
-    struct nlmsghdr *nlh;
+    struct nlmsghdr *nlh,*h;
 
-    // char msg[30] = "Say hello from kernel!";
-
+    //  memset(msg,0,sizeof(msg));
     if(!nl_sk) {
         return;
     }
@@ -40,6 +58,7 @@ void sendnlmsg(int pid,char msg[10000])
     nlh = nlmsg_put(skb, 0, 0, 0, MAX_PAYLOAD_SIZE, 0);
 
     memcpy(NLMSG_DATA(nlh), msg, sizeof(msg));
+    // strcpy(NLMSG_DATA(nlh),msg);
     printk("Send message '%s'.\n",(char *)NLMSG_DATA(nlh));
 
     netlink_unicast(nl_sk, skb, pid, MSG_DONTWAIT);
@@ -47,19 +66,19 @@ void sendnlmsg(int pid,char msg[10000])
 
 void nl_data_ready(struct sk_buff *__skb)
 {
-    char msg[10000];
+    printk(KERN_INFO"ddddd");
     pid_t command_pid;
     struct sk_buff *skb;
     struct nlmsghdr *nlh;
     char str[100];
-    int mode = 0;
+    int i= 0;
     // get current pid
     struct pid* cur_pid = find_get_pid(current->pid);
     struct task_struct* cur_task = pid_task(cur_pid, PIDTYPE_PID);
     struct task_struct *p;
     struct list_head *pp = NULL;
     struct task_struct *psibling;
-    struct task_struct *pparent;
+    struct task_struct *pparent,*pchildren;
     printk("current pid level: %d\n",cur_pid->numbers[cur_pid->level].nr);
     printk("current pid%d\n", current->pid);
     // get current tasks
@@ -75,22 +94,31 @@ void nl_data_ready(struct sk_buff *__skb)
 
         //parent
         if(str[0]=='p') {
-            if(strlen(str)==1) {
-                command_pid = current->pid;
-                p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
-                printk("me: %d %s\n", p->pid, p->comm);
+            char pstr[strlen(str)-1],*end;
+            substr(pstr,str,1,strlen(str)-1);
+            command_pid = simple_strtoul(pstr,&end,10);
+            p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
+            if(p!=NULL) {
+                sprintf(msg,"%s(%d)\n", p->comm, p->pid);
+                do {
+                    pparent = p;
+                    printk("%s(%d)\n",  p->comm,p->pid);
+                    sprintf(msg+ strlen(msg),"%s(%d)\n", pparent->comm,pparent->pid);
+                    p =p->parent;
+                } while(pparent->pid!=0);
+
             } else {
-                char pstr[strlen(str)-1],*end;
-                substr(pstr,str,1,strlen(str)-1);
-                command_pid = simple_strtoul(pstr,&end,10);
-                printk("pid:%d \n",command_pid);
+
+
             }
         }
         //siblings
         else if(str[0]=='s') {
-            if(strlen(str)==1) {
-                command_pid = current->pid;
-                p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
+            char pstr[strlen(str)-1],*end;
+            substr(pstr,str,1,strlen(str)-1);
+            command_pid = simple_strtoul(pstr,&end,10);
+            p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
+            if(p!=NULL) {
                 sprintf(msg,"%s(%d)\n", p->comm, p->pid);
                 list_for_each(pp, &p->parent->children) {
                     psibling = list_entry(pp, struct task_struct, sibling);
@@ -98,50 +126,31 @@ void nl_data_ready(struct sk_buff *__skb)
                     sprintf(msg+ strlen(msg),"%s(%d)\n",  psibling->comm,psibling->pid);
                 }
             } else {
-                char pstr[strlen(str)-1],*end;
-                substr(pstr,str,1,strlen(str)-1);
-                command_pid = simple_strtoul(pstr,&end,10);
-                p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
-                if(p!=NULL) {
-                    sprintf(msg,"%s(%d)\n", p->comm, p->pid);
-                    list_for_each(pp, &p->parent->children) {
-                        psibling = list_entry(pp, struct task_struct, sibling);
-                        printk("%s(%d)\n",  psibling->comm,psibling->pid);
-                        sprintf(msg+ strlen(msg),"%s(%d)\n",  psibling->comm,psibling->pid);
-                    }
-                } else {
-
-
-                }
+                msg[1000]="";
             }
         }
         //children
         else if(str[0]=='c') {
-            if(strlen(str)==1) {
-                command_pid = 1;
-                p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
-                printk("me: %d %s\n", p->pid, p->comm);
-                list_for_each(pp, &p->children) {
-                    psibling = list_entry(pp, struct task_struct, sibling);
-                    printk("children %d %s \n", psibling->pid, psibling->comm);
-                }
+            char pstr[strlen(str)-1],*end;
+            substr(pstr,str,1,strlen(str)-1);
+            command_pid = simple_strtoul(pstr,&end,10);
+            p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
+            if(p!=NULL) {
+                sprintf(msg,"%s(%d)\n", p->comm, p->pid);
+                pstree(p);
+
+
             } else {
-                char pstr[strlen(str)-1],*end;
-                substr(pstr,str,1,strlen(str)-1);
-                command_pid = simple_strtoul(pstr,&end,10);
-                p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
-                printk("me: %d %s\n", p->pid, p->comm);
-                list_for_each(pp, &p->children) {
-                    psibling = list_entry(pp, struct task_struct, sibling);
-                    printk("children %d %s \n", psibling->pid, psibling->comm);
-                }
+
             }
         }
         printk("%s",msg);
-        sendnlmsg(nlh->nlmsg_pid,msg);
+        sendnlmsg(nlh->nlmsg_pid);
+
         kfree_skb(skb);
     }
 }
+
 
 static int netlink_unicast_init(void)
 {
@@ -168,5 +177,4 @@ static void netlink_unicast_exit(void)
 module_init(netlink_unicast_init);
 module_exit(netlink_unicast_exit);
 
-MODULE_AUTHOR("X-SLAM XINU");
 MODULE_LICENSE("GPL");

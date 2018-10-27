@@ -9,8 +9,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define NETLINK_TEST 25
-#define MAX_PAYLOAD_SIZE 10240 // maximum payload size
+#define NETLINK_TEST 31
+#define MAX_PAYLOAD_SIZE 10000
+
+// maximum payload size
 void substr(char *dest,const char *src,int start,int cnt)
 {
     strncpy(dest,src+start,cnt);
@@ -29,7 +31,7 @@ int main(int argc, char* argv[])
     char command[5]="c10";
 
     // Create a socket
-    sock_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_TEST);
+    sock_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
     if(sock_fd == -1) {
         printf("error getting socket: %s", strerror(errno));
         return -1;
@@ -65,12 +67,14 @@ int main(int argc, char* argv[])
 
 
     nlh->nlmsg_len = NLMSG_SPACE(MAX_PAYLOAD_SIZE);
+
     nlh->nlmsg_pid = getpid();
     nlh->nlmsg_flags = 0;
     //to send command
-    if(strncmp(argv[1],"-c",2)==0) {
-        if(strlen(argv[1])==2) {
-            strcpy(NLMSG_DATA(nlh), "c");
+    if(strncmp(argv[1],"-c",2)==0||strlen(argv[1])==0) {
+        if(strlen(argv[1])==2||strlen(argv[1])==0) {
+            char p[10]="c1";
+            strcpy(NLMSG_DATA(nlh), p);
         } else {
             char p[strlen(argv[1])-1];
             substr(p,argv[1],1,strlen(argv[1])-1);
@@ -78,7 +82,9 @@ int main(int argc, char* argv[])
         }
     } else if(strncmp(argv[1],"-s",2)==0) {
         if(strlen(argv[1])==2) {
-            strcpy(NLMSG_DATA(nlh), "s");
+            char p[10];
+            sprintf(p,"s%d",getpid());
+            strcpy(NLMSG_DATA(nlh), p);
         } else {
             char p[strlen(argv[1])-1];
             substr(p,argv[1],1,strlen(argv[1])-1);
@@ -86,15 +92,15 @@ int main(int argc, char* argv[])
         }
     } else if(strncmp(argv[1],"-p",2)==0) {
         if(strlen(argv[1])==2) {
-            strcpy(NLMSG_DATA(nlh), "p");
+            char p[10];
+            sprintf(p,"p%d",getpid());
+            strcpy(NLMSG_DATA(nlh), p);
         } else {
             char p[strlen(argv[1])-1];
             substr(p,argv[1],1,strlen(argv[1])-1);
             strcpy(NLMSG_DATA(nlh), p);
         }
     }
-
-
 
     iov.iov_base = (void *)nlh;
     iov.iov_len = NLMSG_SPACE(MAX_PAYLOAD_SIZE);
@@ -105,10 +111,10 @@ int main(int argc, char* argv[])
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    state_smg = sendmsg(sock_fd, &msg, 0);
-    if(state_smg == -1) {
-        printf("get error sendmsg = %s\n",strerror(errno));
-    }
+    sendmsg(sock_fd, &msg, 0);
+    //if(state_smg == -1) {
+    //  printf("get error sendmsg = %s\n",strerror(errno));
+    //}
 
     memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD_SIZE));
     printf("waiting received!\n");
