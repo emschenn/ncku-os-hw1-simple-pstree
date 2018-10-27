@@ -7,7 +7,7 @@
 #include <linux/string.h>
 #include <net/sock.h>
 #include <net/netlink.h>
-#include<linux/kernel.h>
+#include <linux/kernel.h>
 #include <linux/moduleparam.h>
 
 #define NETLINK_TEST 31
@@ -19,20 +19,23 @@ pid_t pid = 1;
 int time =0;
 module_param(pid,int,0644);
 
-void pstree(struct task_struct* task)
+void pstree(struct task_struct* task,int i)
 {
-    time++;
-    int i=0;
+    i++;
+    int j;
     struct list_head *children_tasks;
     children_tasks = &(task->children);
     list_for_each(children_tasks,&(task->children)) {
         struct task_struct *child_task;
         child_task = list_entry(children_tasks,struct task_struct,sibling);
-
-        sprintf(msg+ strlen(msg),"\t");
+        j=i-1;
+        while(j!=0) {
+            sprintf(msg+ strlen(msg),"\t");
+            j--;
+        }
         printk("%s(%d)",child_task->comm,child_task->pid);
         sprintf(msg+ strlen(msg),"\t%s(%d)\n", child_task->comm,child_task->pid);
-        pstree(child_task);
+        pstree(child_task,i);
     }
 }
 
@@ -66,7 +69,7 @@ void sendnlmsg(int pid)
 
 void nl_data_ready(struct sk_buff *__skb)
 {
-    printk(KERN_INFO"ddddd");
+    msg[10000]="";
     pid_t command_pid;
     struct sk_buff *skb;
     struct nlmsghdr *nlh;
@@ -99,17 +102,16 @@ void nl_data_ready(struct sk_buff *__skb)
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {
-                sprintf(msg,"%s(%d)\n", p->comm, p->pid);
+                memset(msg,0,sizeof(msg));
+                //  sprintf(msg,"%s(%d)\n", p->comm, p->pid);
                 do {
                     pparent = p;
                     printk("%s(%d)\n",  p->comm,p->pid);
-                    sprintf(msg+ strlen(msg),"%s(%d)\n", pparent->comm,pparent->pid);
+                    sprintf(msg+ strlen(msg),"%s(%d) &", pparent->comm,pparent->pid);
                     p =p->parent;
                 } while(pparent->pid!=0);
-
             } else {
-
-
+                memset(msg,0,sizeof(msg));
             }
         }
         //siblings
@@ -119,14 +121,18 @@ void nl_data_ready(struct sk_buff *__skb)
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {
-                sprintf(msg,"%s(%d)\n", p->comm, p->pid);
+                memset(msg,0,sizeof(msg));
+                //  sprintf(msg,"%s(%d)\n", p->comm, p->pid);
                 list_for_each(pp, &p->parent->children) {
                     psibling = list_entry(pp, struct task_struct, sibling);
                     printk("%s(%d)\n",  psibling->comm,psibling->pid);
-                    sprintf(msg+ strlen(msg),"%s(%d)\n",  psibling->comm,psibling->pid);
+                    if(psibling->pid!=p->pid) {
+                        sprintf(msg+ strlen(msg),"%s(%d)\n",  psibling->comm,psibling->pid);
+                    }
+
                 }
             } else {
-                msg[1000]="";
+                memset(msg,0,sizeof(msg));
             }
         }
         //children
@@ -136,12 +142,13 @@ void nl_data_ready(struct sk_buff *__skb)
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {
+                memset(msg,0,sizeof(msg));
                 sprintf(msg,"%s(%d)\n", p->comm, p->pid);
-                pstree(p);
+                pstree(p,0);
 
 
             } else {
-
+                memset(msg,0,sizeof(msg));
             }
         }
         printk("%s",msg);
@@ -150,7 +157,6 @@ void nl_data_ready(struct sk_buff *__skb)
         kfree_skb(skb);
     }
 }
-
 
 static int netlink_unicast_init(void)
 {
@@ -165,7 +171,6 @@ static int netlink_unicast_init(void)
     printk("netlink_unicast_init: Create netlink socket ok.\n");
     return 0;
 }
-
 static void netlink_unicast_exit(void)
 {
     if(nl_sk != NULL) {
@@ -173,7 +178,6 @@ static void netlink_unicast_exit(void)
     }
     printk("netlink_unicast_exit!\n");
 }
-
 module_init(netlink_unicast_init);
 module_exit(netlink_unicast_exit);
 
