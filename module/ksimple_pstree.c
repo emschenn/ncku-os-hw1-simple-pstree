@@ -69,7 +69,7 @@ void sendnlmsg(int pid)
 
 void nl_data_ready(struct sk_buff *__skb)
 {
-    msg[10000]="";
+    memset(msg,0,sizeof(msg));
     pid_t command_pid;
     struct sk_buff *skb;
     struct nlmsghdr *nlh;
@@ -98,7 +98,7 @@ void nl_data_ready(struct sk_buff *__skb)
         //parent
         if(str[0]=='p') {
             char pstr[strlen(str)-1],*end;
-            substr(pstr,str,1,strlen(str)-1);
+            substr(pstr,str,2,strlen(str)-2);
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {
@@ -117,7 +117,7 @@ void nl_data_ready(struct sk_buff *__skb)
         //siblings
         else if(str[0]=='s') {
             char pstr[strlen(str)-1],*end;
-            substr(pstr,str,1,strlen(str)-1);
+            substr(pstr,str,2,strlen(str)-2);
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {
@@ -138,7 +138,7 @@ void nl_data_ready(struct sk_buff *__skb)
         //children
         else if(str[0]=='c') {
             char pstr[strlen(str)-1],*end;
-            substr(pstr,str,1,strlen(str)-1);
+            substr(pstr,str,2,strlen(str)-2);
             command_pid = simple_strtoul(pstr,&end,10);
             p = pid_task(find_vpid(command_pid), PIDTYPE_PID);
             if(p!=NULL) {

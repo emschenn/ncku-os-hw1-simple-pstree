@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     struct msghdr msg;
     int sock_fd, retval;
     int state_smg = 0;
-    char command[5]="c10";
+
     // Create a socket
     sock_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_TEST);
     if(sock_fd == -1) {
@@ -66,36 +66,45 @@ int main(int argc, char* argv[])
     if(argc!=1) {
         if(strncmp(argv[1],"-c",2)==0) {
             if(strlen(argv[1])==2||strlen(argv[1])==0) {
-                char p[10]="c1";
+                char p[10]="c 1";
                 strcpy(NLMSG_DATA(nlh), p);
             } else {
-                char p[strlen(argv[1])-1];
-                substr(p,argv[1],1,strlen(argv[1])-1);
-                strcpy(NLMSG_DATA(nlh), p);
+                char p[strlen(argv[1])];
+                substr(p,argv[1],2,strlen(argv[1])-2);
+                char s[strlen(argv[1])];
+                strcpy(s,"c ");
+                strcat(s,p);
+                strcpy(NLMSG_DATA(nlh), s);
             }
         } else if(strncmp(argv[1],"-s",2)==0) {
             if(strlen(argv[1])==2) {
                 char p[10];
-                sprintf(p,"s%d",getpid());
+                sprintf(p,"s %d",getpid());
                 strcpy(NLMSG_DATA(nlh), p);
             } else {
-                char p[strlen(argv[1])-1];
-                substr(p,argv[1],1,strlen(argv[1])-1);
-                strcpy(NLMSG_DATA(nlh), p);
+                char p[strlen(argv[1])];
+                substr(p,argv[1],2,strlen(argv[1])-2);
+                char s[strlen(argv[1])];
+                strcpy(s,"s ");
+                strcat(s,p);
+                strcpy(NLMSG_DATA(nlh), s);
             }
         } else if(strncmp(argv[1],"-p",2)==0) {
             if(strlen(argv[1])==2) {
                 char p[10];
-                sprintf(p,"p%d",getpid());
+                sprintf(p,"p %d",getpid());
                 strcpy(NLMSG_DATA(nlh), p);
             } else {
-                char p[strlen(argv[1])-1];
-                substr(p,argv[1],1,strlen(argv[1])-1);
-                strcpy(NLMSG_DATA(nlh), p);
+                char p[strlen(argv[1])];
+                substr(p,argv[1],2,strlen(argv[1])-2);
+                char s[strlen(argv[1])];
+                strcpy(s,"p ");
+                strcat(s,p);
+                strcpy(NLMSG_DATA(nlh), s);
             }
         }
     } else {
-        char p[10]="c1";
+        char p[10]="c 1";
         strcpy(NLMSG_DATA(nlh), p);
     }
 
